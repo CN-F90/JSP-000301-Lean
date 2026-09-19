@@ -1,0 +1,26 @@
+name: Lean verification
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build (Lean 4.34.0 + mathlib v4.34.0)
+        uses: leanprover/lean-action@v1
+        with:
+          use-mathlib-cache: true
+
+      - name: Fail on sorry / admit
+        run: |
+          if grep -rnE '\b(sorry|admit)\b' --include='*.lean' .; then
+            echo "::error::found sorry/admit"; exit 1
+          fi
+
+      - name: Axiom audit
+        run: lake env lean JSP000301.lean
