@@ -1,4 +1,4 @@
-name: Lean verification (JSP000301)
+name: Lean verification (JSP000301 + Audit301)
 
 # Self-contained reproducible build. The earlier `leanprover/lean-action@v1`
 # workflow aborted with "No lake-manifest.json found" before elaborating any
@@ -58,7 +58,7 @@ jobs:
         run: lake exe cache get || echo "cache unavailable - will compile from source"
 
       - name: lake build
-        run: lake build JSP000301
+        run: lake build JSP000301 Audit301
 
       - name: Axiom audit (#print axioms)
         run: |
@@ -76,12 +76,39 @@ jobs:
 
           echo "OK: axiom audit passed for all target theorems."
 
+      - name: Axiom audit - independent bridge (Audit301.lean)
+        run: |
+          OUT=$(lake env lean Audit301.lean 2>&1)
+          echo "$OUT"
+          if echo "$OUT" | grep -q 'sorryAx'; then
+            echo "ERROR: 'sorryAx' present in Audit301.lean."
+            exit 1
+          fi
+          EXPECTED="'Audit301.intended_holds' depends on axioms: [propext, Classical.choice, Quot.sound]"
+          if ! echo "$OUT" | grep -qF "$EXPECTED"; then
+            echo "ERROR: unexpected axiom set for Audit301.intended_holds."
+            exit 1
+          fi
+          EXPECTED="'Audit301.submitted_theorem_yields_intended' depends on axioms: [propext, Classical.choice, Quot.sound]"
+          if ! echo "$OUT" | grep -qF "$EXPECTED"; then
+            echo "ERROR: unexpected axiom set for Audit301.submitted_theorem_yields_intended."
+            exit 1
+          fi
+          echo "OK: axiom audit passed for the independent bridge."
+
       - name: Reject forbidden placeholders (sorry / admit / axiom / unsafe)
         run: python3 scripts/check_no_placeholders.py
 
       - name: Confirm the artifact actually compiled (olean present)
         run: |
           f=$(find .lake/build -path "*/lib/lean/JSP000301.olean" | head -1)
+          g=$(find .lake/build -path "*/lib/lean/Audit301.olean" | head -1)
+          if [ -z "$g" ] || [ ! -s "$g" ]; then
+            echo "ERROR: Audit301.olean NOT found under .lake/build/lib/lean/."
+            exit 1
+          fi
+          echo "OK: $g built."
+
           if [ -n "$f" ] && [ -s "$f" ]; then
             echo "OK: $f built ($(stat -c%s "$f") bytes)."
           else

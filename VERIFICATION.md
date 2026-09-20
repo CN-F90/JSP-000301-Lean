@@ -56,3 +56,43 @@ dropped.
   (`.github/workflows/ci.yml`).
 - The pinned toolchain is `leanprover/lean4:v4.34.0` (`lean-toolchain`).
 - mathlib is pinned to `v4.34.0` in `lakefile.toml`.
+
+## Independent audit bridge (`Audit301.lean`)
+
+The official `lean-verify` self-check asks for "a minimal target statement and
+`example : IntendedStatement := ...` in a separate audit file, connecting it to
+the submitted theorem". `Audit301.lean` supplies this. It does three separate
+things:
+
+1. **Independent restatement.** The target is re-written from the original
+   problem text in formulations deliberately *different* from `JSP000301.lean`:
+   - "powerful" is restated by the classical `a^2 * b^3` representation
+     (`PowerfulRep`), an existential over two explicit witnesses, instead of an
+     unbounded universal over the primes;
+   - "not a perfect square" is restated as a bounded exhaustive check
+     (`NotSquareByCheck`): no `k < n + 1` satisfies `k * k = n`, instead of a
+     `Nat.sqrt` argument.
+2. **Independent re-verification.** The witness is re-established from scratch
+   under these new definitions: `12167 = 1^2 * 23^3` and `12168 = 39^2 * 2^3` by
+   `norm_num`, and non-square-ness by kernel computation (`by decide`) over
+   `Finset.range (n + 1)`. No theorem of `JSP000301.lean` is used for this.
+3. **Bridge to the submitted theorem.** `PowerfulRep.powerful` and
+   `NotSquareByCheck.not_square` prove the alternative formulations sound
+   against the submitted ones; `intended_yields_submitted` transports the
+   independently verified statement to the submitted statement;
+   `submitted_theorem_yields_intended` applies that bridge to the published
+   proof term `JSP000301.jsp_000301`. `submitted_pos` shows the submitted
+   statement does carry the positivity the wording requires (`n = 0` is
+   excluded because `0` is a perfect square).
+
+Axioms for every bridge theorem: `[propext, Classical.choice, Quot.sound]`.
+No `sorry`, no `admit`, no custom axiom, no `native_decide`.
+`JSP000301.lean` is untouched; the pinned proof commit `4726b8cb...` remains
+the verification target.
+
+Reproduce with:
+
+```bash
+lake build JSP000301 Audit301
+lake env lean Audit301.lean
+```
